@@ -1,0 +1,6 @@
+pandas
+requests
+joblib
+schedule
+scikit-learn
+openpyxl
