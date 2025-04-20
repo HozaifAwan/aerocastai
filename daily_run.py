@@ -34,6 +34,11 @@ def pull_latest_logs():
 
 def push_updated_logs():
     try:
+        # 💾 Tell Git who you are (REQUIRED for Render to commit)
+        subprocess.run(["git", "config", "user.email", "hozaifawan@email.com"])
+        subprocess.run(["git", "config", "user.name", "Hozaif Awan"])
+
+        # ✅ Stage, commit, and push updated logs
         subprocess.run(["git", "add", "retrain_log.txt", "daily_log.csv"], check=True)
         subprocess.run(["git", "commit", "-m", "Auto-update: new weather data and retrain log"], check=True)
         subprocess.run(["git", "push", "origin", "main"], check=True)
@@ -56,7 +61,6 @@ else:
 lat, lon, temperature, humidity, pressure = fetch_weather_data()
 print("🔁 Retraining model...")
 
-# ✅ Fixed columns here:
 X = df_daily[['slat','slon','len','wid','temperature']] if not df_daily.empty else pd.DataFrame([[lat, lon, 0, 0, temperature]], columns=['slat','slon','len','wid','temperature'])
 
 y = [random.choice([0, 1])] * len(X)
