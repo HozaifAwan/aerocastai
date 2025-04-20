@@ -55,7 +55,10 @@ else:
 # Step 3: Fetch weather data and predict
 lat, lon, temperature, humidity, pressure = fetch_weather_data()
 print("🔁 Retraining model...")
-X = df_daily[['slat','slon','len','wid','temperature','humidity','pressure']] if not df_daily.empty else pd.DataFrame([[lat, lon, 0, 0, temperature, humidity, pressure]], columns=['slat','slon','len','wid','temperature','humidity','pressure'])
+
+# ✅ Fixed columns here:
+X = df_daily[['slat','slon','len','wid','temperature']] if not df_daily.empty else pd.DataFrame([[lat, lon, 0, 0, temperature]], columns=['slat','slon','len','wid','temperature'])
+
 y = [random.choice([0, 1])] * len(X)
 model = RandomForestClassifier()
 model.fit(X, y)
