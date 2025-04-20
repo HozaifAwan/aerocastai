@@ -1,84 +1,98 @@
+import schedule
 import joblib
 import pandas as pd
-import datetime
-import random
+from datetime import datetime
+from retrain_model import model
+import os
 import subprocess
 import requests
+import random
 
-def fetch_weather_data():
-    url = "https://api.open-meteo.com/v1/forecast"
-    params = {
-        "latitude": 34.05,      # example: Los Angeles
-        "longitude": -118.25,
-        "current": "temperature_2m,wind_speed_10m",
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
+# Fetch random weather data from Open-Meteo
+latitude = round(random.uniform(-90, 90), 4)
+longitude = round(random.uniform(-180, 180), 4)
+location_name = "Unknown location"
 
-    slat = params["latitude"]
-    slon = params["longitude"]
-    length = round(random.uniform(1.0, 50.0), 1)
-    width = round(random.uniform(1.0, 30.0), 1)
-    temperature = data["current"]["temperature_2m"]
+# Fetch live weather data
+url = (
+    f"https://api.open-meteo.com/v1/forecast"
+    f"?latitude={latitude}&longitude={longitude}"
+    f"&hourly=wind_speed_10m,wind_gusts_10m,temperature_2m"
+    f"&forecast_days=1&timezone=America%2FChicago"
+)
+response = requests.get(url).json()
 
-    return slat, slon, length, width, temperature
+# Grab latest weather details
+wind_speed = response["hourly"]["wind_speed_10m"][0]
+wind_gusts = response["hourly"]["wind_gusts_10m"][0]
+temperature = response["hourly"]["temperature_2m"][0]
 
-def setup_git_identity():
-    try:
-        subprocess.run(['git', 'config', '--global', 'user.email', 'hozaifawan@gmail.com'], check=True)
-        subprocess.run(['git', 'config', '--global', 'user.name', 'Hozaif Awan'], check=True)
-        subprocess.run(['git', 'remote', 'add', 'origin', 'https://github.com/HozaifAwan/aerocastai.git'], check=False)
-    except subprocess.CalledProcessError as e:
-        print(f"⚠️ Git identity setup warning: {e}")
+# Prediction
+input_data = pd.DataFrame([{
+    "slat": latitude,
+    "slon": longitude,
+    "len": wind_speed,
+    "wid": wind_gusts,
+    "temperature": temperature
+}])
 
-def push_updated_logs():
-    try:
-        setup_git_identity()
-        subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
-        print("✅ Pulled latest logs from GitHub")
+# Ensure binary prediction (0 or 1)
+prediction = int(model.predict(input_data)[0] > 0.5)
 
-        subprocess.run(['git', 'add', '.'], check=True)
-        subprocess.run(['git', 'commit', '-m', 'Auto-update: new weather data and retrain log'], check=True)
-        subprocess.run(['git', 'push', '-u', 'origin', 'main', '--force'], check=True)
-        print("✅ Logs pushed to GitHub")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git error: {e}")
+# Get probabilities correctly for binary classification
+probas = model.predict_proba(input_data)[0]
 
-def pull_latest_logs():
-    try:
-        subprocess.run(['git', 'pull', 'origin', 'main'], check=True)
-        print("✅ Pulled latest logs from GitHub")
-    except subprocess.CalledProcessError:
-        print("❌ Failed to pull latest logs from GitHub")
+# Correct confidence handling for binary predictions
+confidence = round(probas[prediction] * 100, 2)
 
-def main():
-    pull_latest_logs()
+# Log data consistently
+timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+log_entry = {
+    "timestamp": timestamp,
+    "slat": latitude,
+    "slon": longitude,
+    "len": wind_speed,
+    "wid": wind_gusts,
+    "temperature": temperature,
+    "prediction": prediction,
+    "confidence": confidence,
+    "location": location_name
+}
 
-    model = joblib.load("aerocastai_model.pkl")
-    slat, slon, length, width, temperature = fetch_weather_data()
+log_df = pd.DataFrame([log_entry])
+log_df.to_csv("daily_log.csv", mode="a", header=not os.path.exists("daily_log.csv"), index=False)
 
-    X_new = pd.DataFrame([[slat, slon, length, width, temperature]],
-                         columns=["slat", "slon", "len", "wid", "temperature"])
+print(f"🌦️ Logged new prediction: {log_entry}")
 
-    prediction = model.predict(X_new)[0]
+# Retrain the model
+df = pd.read_csv("daily_log.csv").dropna()
+if not df.empty:
+    X = df[["slat", "slon", "len", "wid", "temperature"]]
+    y = df["prediction"]
 
-    # Log prediction
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    confidence = round(random.uniform(50.0, 100.0), 2)
+    new_model = model.fit(X, y)
+    joblib.dump(new_model, "aerocastai_model.pkl")
 
-    new_data = pd.DataFrame([[now, slat, slon, length, width, temperature, prediction, confidence, "Unknown location"]],
-                            columns=["timestamp", "slat", "slon", "len", "wid", "temperature", "prediction", "confidence", "location"])
+    with open("retrain_log.txt", "a") as f:
+        f.write(f"{timestamp}: Retrained model - Accuracy: {new_model.score(X, y)*100:.2f}%\n")
 
-    try:
-        existing_data = pd.read_csv("daily_log.csv")
-        updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-    except FileNotFoundError:
-        updated_data = new_data
+    print("✅ Model retrained and saved")
+else:
+    print("⚠️ No data available for retraining.")
 
-    updated_data.to_csv("daily_log.csv", index=False)
-    print("🌦️ New weather prediction logged")
+# GitHub Auto Push (Update with your correct credentials)
+try:
+    subprocess.run(["git", "config", "--global", "user.email", "hozaifawan@render.com"], check=True)
+    subprocess.run(["git", "config", "--global", "user.name", "HozaifAwan"], check=True)
+    subprocess.run(["git", "add", "daily_log.csv", "retrain_log.txt", "aerocastai_model.pkl"], check=True)
+    subprocess.run(["git", "commit", "-m", f"Auto-update: weather data & retrained model ({timestamp})"], check=True)
 
-    push_updated_logs()
+    subprocess.run([
+        "git", "push", "-u",
+        "https://HozaifAwan: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@github.com/HozaifAwan/aerocastai.git",
+        "main", "--force"
+    ], check=True)
 
-if __name__ == "__main__":
-    main()
+    print("✅ Successfully pushed logs and model to GitHub")
+except subprocess.CalledProcessError as e:
+    print(f"❌ Git push error: {e}")
