@@ -80,13 +80,14 @@ if not df.empty:
 else:
     print("⚠️ No data available for retraining.")
 
-# GitHub Auto Push (no token in the file)
+# GitHub Auto Push using token-based URL
 try:
     subprocess.run(["git", "config", "--global", "user.email", "hozaifawan@render.com"], check=True)
     subprocess.run(["git", "config", "--global", "user.name", "HozaifAwan"], check=True)
+    subprocess.run(["git", "init"], check=True)
+    subprocess.run(["git", "remote", "add", "origin", "https://HozaifAwan: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@github.com/HozaifAwan/aerocastai.git"], check=True)
     subprocess.run(["git", "add", "daily_log.csv", "retrain_log.txt", "aerocastai_model.pkl"], check=True)
     subprocess.run(["git", "commit", "-m", f"Auto-update: weather data & retrained model ({timestamp})"], check=True)
-
     subprocess.run(["git", "push", "-u", "origin", "main", "--force"], check=True)
 
     print("✅ Successfully pushed logs and model to GitHub")
