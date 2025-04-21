@@ -4,9 +4,9 @@ import pandas as pd
 from datetime import datetime
 from retrain_model import model
 import os
-import subprocess
 import requests
 import random
+import base64
 
 # Fetch random weather data from Open-Meteo
 latitude = round(random.uniform(-90, 90), 4)
@@ -80,21 +80,43 @@ if not df.empty:
 else:
     print("⚠️ No data available for retraining.")
 
-# GitHub Auto Push using secure environment token
-try:
-    subprocess.run(["git", "config", "--global", "user.email", "hozaifawan@render.com"], check=True)
-    subprocess.run(["git", "config", "--global", "user.name", "HozaifAwan"], check=True)
-    subprocess.run(["git", "init"], check=True)
-    subprocess.run(["git", "remote", "add", "origin", f"https://HozaifAwan:{os.getenv('GH_TOKEN')}@github.com/HozaifAwan/aerocastai.git"], check=True)
-    subprocess.run(["git", "add", "daily_log.csv", "retrain_log.txt", "aerocastai_model.pkl"], check=True)
-    subprocess.run(["git", "commit", "-m", f"Auto-update: weather data & retrained model ({timestamp})"], check=True)
-    subprocess.run(["git", "push", "-u", "origin", "main", "--force"], check=True)
+# GitHub Upload via API
 
-    print("✅ Successfully pushed logs and model to GitHub")
-except subprocess.CalledProcessError as e:
-    print(f"❌ Git push error: {e}")
+def upload_to_github(filepath, message, repo, token):
+    filename = os.path.basename(filepath)
+    url = f"https://api.github.com/repos/{repo}/contents/{filename}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json"
+    }
+    with open(filepath, "rb") as f:
+        content = base64.b64encode(f.read()).decode()
 
-# 🔁 Push this file to GitHub from VS Code:
-# git add daily_run.py
-# git commit -m "Updated push to use GH_TOKEN env var"
-# git push origin main
+    # Get the current file SHA if it exists
+    sha = None
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        sha = r.json().get("sha")
+
+    data = {
+        "message": message,
+        "content": content,
+    }
+    if sha:
+        data["sha"] = sha
+
+    r = requests.put(url, headers=headers, json=data)
+    if r.status_code in [200, 201]:
+        print(f"✅ Uploaded {filename} to GitHub")
+    else:
+        print(f"❌ Failed to upload {filename}: {r.status_code} - {r.text}")
+
+# Upload files
+repo_name = "HozaifAwan/aerocastai"
+github_token = os.environ.get("GH_TOKEN")
+if github_token:
+    upload_to_github("daily_log.csv", f"Update log {timestamp}", repo_name, github_token)
+    upload_to_github("aerocastai_model.pkl", f"Update model {timestamp}", repo_name, github_token)
+    upload_to_github("retrain_log.txt", f"Update retrain log {timestamp}", repo_name, github_token)
+else:
+    print("❌ GH_TOKEN not found in environment variables")
