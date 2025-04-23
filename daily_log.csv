@@ -1,1 +1,6 @@
-2025-04-22 20:15:09,30.26715,-97.74306,3.4,11.2,21.3,11.3,53,0.0,16,996.7,270.0,2.3,0,85.0,"Austin, Texas, United States"
+timestamp,lat,lon,temperature,dew_point_2m,relative_humidity_2m,precipitation,cloudcover,surface_pressure,convective_available_potential_energy,lifted_index,wind_speed_10m,wind_gusts_10m,prediction,confidence,location
+2025-04-23 04:09:23,36.7944,-101.7643,17.3,-3.4,13,0.0,0,894.6,30.0,-0.9,19.3,28.8,0,50.0,Random Coordinates
+2025-04-22 23:28:12,32.78306,-96.80667,3.1,8.6,17.3,9.5,60,0.0,0,999.9,0.0,7.1,0,100.0,"Dallas, Texas, United States"
+2025-04-22 23:31:07,30.26715,-97.74306,3.4,11.2,21.3,11.3,53,0.0,16,996.7,270.0,2.3,0,100.0,"Austin, Texas, United States"
+2025-04-22 23:32:16,32.78306,-96.80667,3.1,8.6,17.3,9.5,60,0.0,0,999.9,0.0,7.1,0,100.0,"Dallas, Texas, United States"
+2025-04-22 23:34:58,29.42412,-98.49363,7.2,23.8,22.6,17.3,72,0.0,0,990.8,590.0,-3.2,0,100.0,"San Antonio, Texas, United States"
