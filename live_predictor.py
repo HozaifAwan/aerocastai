@@ -4,10 +4,6 @@ import joblib
 import time
 from datetime import datetime
 from urllib.parse import quote
-
-# --------------------------
-# Configuration (user input OR fallback to random)
-# --------------------------
 import random
 
 location_name = "Unknown location"  # 🧠 GLOBAL default value
@@ -25,6 +21,14 @@ def run_aerocastai():
                 encoded_location = quote(user_location)
                 geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={encoded_location}&count=1"
                 geo_response = requests.get(geo_url).json()
+
+                if not geo_response.get("results"):
+                    parts = user_location.split(",")
+                    if len(parts) >= 2:
+                        fallback_location = quote(parts[0].strip() + ", " + parts[-1].strip())
+                        fallback_url = f"https://geocoding-api.open-meteo.com/v1/search?name={fallback_location}&count=1"
+                        geo_response = requests.get(fallback_url).json()
+
                 if "results" in geo_response and len(geo_response["results"]) > 0:
                     result = geo_response["results"][0]
                     latitude = result["latitude"]
@@ -51,36 +55,41 @@ def run_aerocastai():
 
     print(f"\n🕒 Running AEROCASTAI at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
 
-    # Step 1: Get Live Weather Data (Open-Meteo)
     url = (
         f"https://api.open-meteo.com/v1/forecast"
         f"?latitude={latitude}&longitude={longitude}"
-        f"&hourly=wind_speed_10m,wind_gusts_10m,temperature_2m"
+        f"&hourly=wind_speed_10m,wind_gusts_10m,temperature_2m,dew_point_2m,relative_humidity_2m,precipitation,cloudcover,surface_pressure,cape,lifted_index"
         f"&forecast_days=1&timezone=America%2FChicago"
     )
     response = requests.get(url)
     data = response.json()
 
     latest_index = 0
-    wind_speed = data["hourly"]["wind_speed_10m"][latest_index]
-    wind_gusts = data["hourly"]["wind_gusts_10m"][latest_index]
-    temperature = data["hourly"]["temperature_2m"][latest_index]
+    wind_speed = data["hourly"].get("wind_speed_10m", [None])[latest_index]
+    wind_gusts = data["hourly"].get("wind_gusts_10m", [None])[latest_index]
+    temperature = data["hourly"].get("temperature_2m", [None])[latest_index]
+    dew_point = data["hourly"].get("dew_point_2m", [None])[latest_index]
+    humidity = data["hourly"].get("relative_humidity_2m", [None])[latest_index]
+    precipitation = data["hourly"].get("precipitation", [None])[latest_index]
+    cloudcover = data["hourly"].get("cloudcover", [None])[latest_index]
+    pressure = data["hourly"].get("surface_pressure", [None])[latest_index]
+    cape = data["hourly"].get("cape", [None])[latest_index]
+    lifted_index = data["hourly"].get("lifted_index", [None])[latest_index]
 
-    # Step 1.1: Fallback to NOAA if needed (optional enhancement)
     try:
-        if wind_speed is None or wind_gusts is None:
+        if wind_speed is None or wind_gusts is None or temperature is None:
             print("🌐 Fetching NOAA fallback data...")
             noaa_url = f"https://api.weather.gov/points/{latitude},{longitude}"
             noaa_response = requests.get(noaa_url).json()
             forecast_url = noaa_response['properties']['forecastHourly']
             forecast_data = requests.get(forecast_url).json()
             first_period = forecast_data['properties']['periods'][0]
-            wind_speed = float(first_period['windSpeed'].split()[0]) / 2.237  # convert mph to m/s
-            wind_gusts = wind_speed + 5.0  # crude gust approximation
+            wind_speed = float(first_period['windSpeed'].split()[0]) / 2.237
+            wind_gusts = wind_speed + 5.0
+            temperature = float(first_period['temperature'])
     except:
         print("⚠️ NOAA fallback failed.")
 
-    # Step 1.5: Try Open-Meteo Reverse API if name was unknown
     if location_name == "Unknown location":
         try:
             reverse_geo_url = f"https://geocoding-api.open-meteo.com/v1/reverse?latitude={latitude}&longitude={longitude}"
@@ -96,6 +105,13 @@ def run_aerocastai():
     print(f"💨 Wind Speed: {wind_speed} m/s")
     print(f"🌪️ Gusts: {wind_gusts} m/s")
     print(f"🌡️ Temperature: {temperature}°C")
+    print(f"💧 Dew Point: {dew_point}°C")
+    print(f"💦 Humidity: {humidity}%")
+    print(f"☔️ Precipitation: {precipitation} mm")
+    print(f"☁️ Cloud Cover: {cloudcover}%")
+    print(f"⚖️ Pressure: {pressure} hPa")
+    print(f"🌌 CAPE: {cape} J/kg")
+    print(f"📉 Lifted Index: {lifted_index}")
 
     model = joblib.load("aerocastai_model.pkl")
 
@@ -103,14 +119,26 @@ def run_aerocastai():
         "slat": latitude,
         "slon": longitude,
         "len": wind_speed,
-        "wid": wind_gusts
+        "wid": wind_gusts,
+        "temperature": temperature,
+        "dew": dew_point,
+        "humidity": humidity,
+        "precipitation": precipitation,
+        "cloudcover": cloudcover,
+        "pressure": pressure,
+        "cape": cape,
+        "lifted_index": lifted_index
     }])
 
     prediction = model.predict(input_data)[0]
-    probas = model.predict_proba(input_data)
-    confidence = probas[0][int(prediction)] * 100
+    probas = model.predict_proba(input_data)[0]
 
-    print("\n🤖 AEROCASTAI Prediction:")
+    if int(prediction) < len(probas):
+        confidence = probas[int(prediction)] * 100
+    else:
+        confidence = max(probas) * 100
+
+    print("\n🤮 AEROCASTAI Prediction:")
     if prediction == 1:
         print(f"⚠️ Tornado Conditions Likely — Confidence: {confidence:.0f}%")
     else:
@@ -123,6 +151,13 @@ def run_aerocastai():
         "len": wind_speed,
         "wid": wind_gusts,
         "temperature": temperature,
+        "dew": dew_point,
+        "humidity": humidity,
+        "precipitation": precipitation,
+        "cloudcover": cloudcover,
+        "pressure": pressure,
+        "cape": cape,
+        "lifted_index": lifted_index,
         "prediction": int(prediction),
         "confidence": round(confidence, 2),
         "location": location_name

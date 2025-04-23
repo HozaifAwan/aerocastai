@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 timestamp,slat,slon,len,wid,temperature,prediction,confidence,location
 35.2,-97.4,9.0,20.5,15.2,1.0,74.0,Unknown location,
 54.0,65.0,22.8,41.8,3.9,1.0,58.0,Unknown location,
@@ -21,3 +22,11 @@ timestamp,slat,slon,len,wid,temperature,prediction,confidence,location
 2025-04-21 19:00:29,-67.4452,-158.7625,23.4,31.0,-3.2,1,8.0,Unknown location
 2025-04-22 15:00:48,38.3603,167.3775,68.1,103.3,16.2,1,5.0,Unknown location
 2025-04-22 19:00:29,-49.4326,56.424,41.4,60.8,8.1,1,0.0,Unknown location
+=======
+slat,slon,len,wid,temperature,dew,humidity,precipitation,cloudcover,pressure,cape,lifted_index,prediction,confidence,location
+32.78306,-96.80667,3.1,8.6,17.3,9.5,60,0.0,0,999.9,0.0,7.1,0,88.0,"Dallas, Texas, United States"
+41.8781,-87.6298,6.3,11.5,7.3,3.4,76,0.0,1,996.1,0.0,13.0,0,88.0,"Chicago, Illinois, United States"
+39.0997,-94.5786,13.7,30.2,14.5,8.6,68,0.0,0,981.5,0.0,4.1,1,92.0,"Kansas City, Missouri, United States"
+
+"2025-04-22 20:15:09","30.26715","-97.74306","3.4","11.2","21.3","11.3","53","0.0","16","996.7","270.0","2.3","0","85.0","Austin, Texas, United States"
+>>>>>>> 7e682e22 (🔥 Backend upgraded with weather features + retrainable AI model)

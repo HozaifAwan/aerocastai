@@ -2,21 +2,32 @@ import pandas as pd
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 
-# Load and clean data
-df = pd.read_csv("daily_log.csv").dropna(subset=["slat", "slon", "len", "wid", "temperature", "prediction"])
+# Load the log CSV
+df = pd.read_csv("daily_log.csv")
 
-# Double-check if data is valid after dropping NaNs
+# Keep only rows with valid prediction and no missing values
+df = df.dropna()
+df = df[df['prediction'].isin([0, 1])]
+
+# If there are no valid rows, quit
 if df.empty:
-    raise ValueError("❌ Training dataset empty after dropping NaNs. Cannot retrain.")
+    print("❌ Not enough valid rows to retrain the model. Run live_predictor.py manually first.")
+    exit()
 
-# Use correct columns
-X = df[["slat", "slon", "len", "wid", "temperature"]]
-y = df["prediction"].astype(int)  # Ensure predictions are integers
+# Select features for training
+features = [
+    "slat", "slon", "len", "wid", "temperature",
+    "dew", "humidity", "precipitation", "cloudcover",
+    "pressure", "cape", "lifted_index"
+]
 
-# Retrain model
+X = df[features]
+y = df["prediction"]
+
+# Retrain the model
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X, y)
 
-# Save retrained model
+# Save the new model
 joblib.dump(model, "aerocastai_model.pkl")
-print("✅ Model retrained and saved successfully")
+print("✅ Model retrained and saved as aerocastai_model.pkl")
