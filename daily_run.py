@@ -7,76 +7,29 @@ import base64
 from datetime import datetime
 from retrain_model import run as retrain_model
 
-# ====== CONFIG ======
-CSV_FILE = "daily_log.csv"
-HEADER = [
-    "timestamp", "lat", "lon", "temperature", "dew_point_2m", "relative_humidity_2m",
-    "precipitation", "cloudcover", "surface_pressure", "convective_available_potential_energy",
-    "lifted_index", "wind_speed_10m", "wind_gusts_10m", "prediction", "confidence", "location"
-]
+# CONFIG
+repo_name = "HozaifAwan/aerocastai"
+github_token = os.environ.get("GH_TOKEN")
+csv_file = "daily_log.csv"
+model_file = "aerocastai_model.pkl"
+log_file = "retrain_log.txt"
 
-# ====== LOG DATA FUNCTION ======
-def log_random_weather():
-    lat = round(random.uniform(-90, 90), 4)
-    lon = round(random.uniform(-180, 180), 4)
-    location = "Unknown location"
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+# Fetch latest CSV from GitHub
+def download_csv_from_github(repo, token):
+    url = f"https://api.github.com/repos/{repo}/contents/{csv_file}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github.v3.raw"
+    }
+    r = requests.get(url, headers=headers)
+    if r.status_code == 200:
+        with open(csv_file, "w", encoding="utf-8") as f:
+            f.write(r.text)
+        print("⬇️ Pulled latest daily_log.csv from GitHub")
+    else:
+        print("⚠️ No previous CSV found or failed to pull — will create fresh one")
 
-    url = (
-        f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
-        f"&hourly=temperature_2m,dew_point_2m,relative_humidity_2m,precipitation,cloudcover"
-        f",surface_pressure,convective_available_potential_energy,lifted_index,wind_speed_10m,wind_gusts_10m"
-        f"&forecast_days=1&timezone=auto"
-    )
-
-    try:
-        response = requests.get(url)
-        data = response.json()
-        hourly = data.get("hourly", {})
-
-        def get_value(key):
-            return hourly.get(key, [None])[0]
-
-        entry = {
-            "timestamp": timestamp,
-            "lat": lat,
-            "lon": lon,
-            "temperature": get_value("temperature_2m"),
-            "dew_point_2m": get_value("dew_point_2m"),
-            "relative_humidity_2m": get_value("relative_humidity_2m"),
-            "precipitation": get_value("precipitation"),
-            "cloudcover": get_value("cloudcover"),
-            "surface_pressure": get_value("surface_pressure"),
-            "convective_available_potential_energy": get_value("convective_available_potential_energy"),
-            "lifted_index": get_value("lifted_index"),
-            "wind_speed_10m": get_value("wind_speed_10m"),
-            "wind_gusts_10m": get_value("wind_gusts_10m"),
-            "prediction": None,
-            "confidence": None,
-            "location": location
-        }
-
-        input_df = pd.DataFrame([entry])
-        model = joblib.load("aerocastai_model.pkl")
-        input_features = input_df[[
-            "lat", "lon", "wind_speed_10m", "wind_gusts_10m", "temperature",
-            "dew_point_2m", "relative_humidity_2m", "precipitation", "cloudcover",
-            "surface_pressure", "convective_available_potential_energy", "lifted_index"
-        ]].astype(float)
-
-        prediction = model.predict(input_features)[0]
-        probas = model.predict_proba(input_features)[0]
-        confidence = round(probas[int(prediction)] * 100, 2)
-
-        input_df["prediction"] = int(prediction)
-        input_df["confidence"] = confidence
-
-        input_df.to_csv(CSV_FILE, mode="a", header=not os.path.exists(CSV_FILE), index=False)
-        print(f"✅ Logged random data entry at {timestamp}")
-    except Exception as e:
-        print(f"❌ Failed to log weather data: {e}")
-
-# ====== GITHUB PUSH FUNCTION ======
+# Upload file to GitHub
 def upload_to_github(filepath, message, repo, token):
     filename = os.path.basename(filepath)
     url = f"https://api.github.com/repos/{repo}/contents/{filename}"
@@ -85,39 +38,97 @@ def upload_to_github(filepath, message, repo, token):
         "Accept": "application/vnd.github+json"
     }
 
-    with open(filepath, "rb") as f:
-        content = base64.b64encode(f.read()).decode()
-
-    # Get file SHA if already exists
+    # Get SHA of existing file
     sha = None
     r = requests.get(url, headers=headers)
     if r.status_code == 200:
         sha = r.json().get("sha")
 
-    data = {"message": message, "content": content}
+    # Read and encode file
+    with open(filepath, "rb") as f:
+        content = base64.b64encode(f.read()).decode()
+
+    data = {
+        "message": message,
+        "content": content,
+    }
     if sha:
         data["sha"] = sha
 
     r = requests.put(url, headers=headers, json=data)
     if r.status_code in [200, 201]:
-        print(f"📤 Uploaded {filename} to GitHub")
+        print(f"✅ Uploaded {filename} to GitHub")
     else:
-        print(f"❌ GitHub upload failed for {filename}: {r.status_code} {r.text}")
+        print(f"❌ Failed to upload {filename}: {r.status_code} — {r.text}")
 
-# ====== MAIN EXECUTION ======
-def run():
-    log_random_weather()
-    retrain_model()
+# Start fresh if GitHub token available
+if github_token:
+    download_csv_from_github(repo_name, github_token)
 
-    token = os.environ.get("GH_TOKEN")
-    repo = "HozaifAwan/aerocastai"
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+# Step 1: Random location
+lat = round(random.uniform(25, 49), 4)
+lon = round(random.uniform(-124, -66), 4)
 
-    if token:
-        upload_to_github("daily_log.csv", f"Update log {timestamp}", repo, token)
-        upload_to_github("aerocastai_model.pkl", f"Update model {timestamp}", repo, token)
-    else:
-        print("❌ GitHub token not set in environment (GH_TOKEN)")
+# Step 2: Get Open-Meteo weather data
+url = (
+    f"https://api.open-meteo.com/v1/forecast"
+    f"?latitude={lat}&longitude={lon}"
+    f"&hourly=wind_speed_10m,wind_gusts_10m,temperature_2m,dew_point_2m,"
+    f"relative_humidity_2m,precipitation,cloudcover,surface_pressure,"
+    f"cape,lifted_index"
+    f"&forecast_days=1&timezone=America%2FChicago"
+)
+response = requests.get(url).json()
+latest = 0
 
-if __name__ == "__main__":
-    run()
+# Step 3: Extract values
+def get(field):
+    return response["hourly"].get(field, [None])[latest]
+
+data = {
+    "lat": lat,
+    "lon": lon,
+    "wind_speed_10m": get("wind_speed_10m"),
+    "wind_gusts_10m": get("wind_gusts_10m"),
+    "temperature": get("temperature_2m"),
+    "dew_point_2m": get("dew_point_2m"),
+    "relative_humidity_2m": get("relative_humidity_2m"),
+    "precipitation": get("precipitation"),
+    "cloudcover": get("cloudcover"),
+    "surface_pressure": get("surface_pressure"),
+    "convective_available_potential_energy": get("cape"),
+    "lifted_index": get("lifted_index")
+}
+
+# Step 4: Predict
+model = joblib.load(model_file)
+X_input = pd.DataFrame([data])
+prediction = int(model.predict(X_input)[0])
+probas = model.predict_proba(X_input)[0]
+confidence = round(probas[prediction] * 100, 2)
+
+# Step 5: Log row
+log_entry = {
+    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    **data,
+    "prediction": prediction,
+    "confidence": confidence,
+    "location": "Random US coords"
+}
+log_df = pd.DataFrame([log_entry])
+
+# Step 6: Append to CSV
+log_df.to_csv(csv_file, mode="a", header=not os.path.exists(csv_file), index=False)
+print(f"📥 Logged random data entry at {log_entry['timestamp']}")
+
+# Step 7: Retrain model
+retrain_model()
+
+# Step 8: Upload files
+if github_token:
+    upload_to_github(csv_file, f"Update log {log_entry['timestamp']}", repo_name, github_token)
+    upload_to_github(model_file, f"Update model {log_entry['timestamp']}", repo_name, github_token)
+    if os.path.exists(log_file):
+        upload_to_github(log_file, f"Update retrain log {log_entry['timestamp']}", repo_name, github_token)
+else:
+    print("⚠️ GH_TOKEN not found in environment.")
