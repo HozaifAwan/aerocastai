@@ -1,3 +1,22 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import pandas as pd
+import os
+import datetime
+import joblib
+
+app = Flask(__name__)
+CORS(app)
+
+# Load trained model
+model = joblib.load("aerocastai_model.pkl")
+
+USER_LOG_FILE = "user_log.csv"
+
+@app.route('/')
+def home():
+    return "✅ AeroCastAI backend is live."
+
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
@@ -7,6 +26,7 @@ def predict():
             "precipitation", "cloudcover", "surface_pressure", "wind_speed_10m",
             "wind_gusts_10m", "convective_available_potential_energy", "lifted_index"
         ]
+
         for field in required_fields:
             if field not in data:
                 return jsonify({"error": f"Missing field: {field}"}), 400
@@ -18,16 +38,17 @@ def predict():
             data["convective_available_potential_energy"], data["lifted_index"]
         ]]
 
-        prediction = model.predict(features)[0]
+        prediction = int(model.predict(features)[0])
         confidence = round(model.predict_proba(features)[0][prediction] * 100, 2)
 
         log_entry = {
             **data,
-            "prediction": int(prediction),
+            "prediction": prediction,
             "confidence": confidence,
             "timestamp": datetime.datetime.now().isoformat()
         }
 
+        # Append to user_log.csv
         df = pd.DataFrame([log_entry])
         if not os.path.exists(USER_LOG_FILE):
             df.to_csv(USER_LOG_FILE, index=False)
@@ -38,5 +59,8 @@ def predict():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
 
 
