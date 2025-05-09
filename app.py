@@ -4,7 +4,7 @@ import pandas as pd
 
 app = Flask(__name__)
 
-# Load model
+# Load the trained model
 model = joblib.load("aerocastai_model.pkl")
 
 @app.route("/")
@@ -16,7 +16,7 @@ def predict():
     try:
         data = request.get_json()
 
-        # Match exactly with the frontend field names
+        # Required features from frontend
         features = [
             "lat", "lon", "wind_speed_10m", "wind_gusts_10m", "temperature",
             "dew_point_2m", "relative_humidity_2m", "precipitation",
@@ -24,10 +24,12 @@ def predict():
             "convective_available_potential_energy", "lifted_index"
         ]
 
-        # Create dataframe for model
+        # Ensure all features are present
+        if not all(feat in data for feat in features):
+            return jsonify({"error": "Missing one or more required fields."}), 400
+
         input_df = pd.DataFrame([[data[feat] for feat in features]], columns=features)
 
-        # Predict
         pred = model.predict(input_df)[0]
         probas = model.predict_proba(input_df)[0]
         confidence = round(probas[int(pred)] * 100, 2)
@@ -38,8 +40,7 @@ def predict():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
-
