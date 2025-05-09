@@ -6,3 +6,4 @@ scikit-learn
 openpyxl
 gunicorn
 Flask
+flask-cors
