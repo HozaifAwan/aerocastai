@@ -3,6 +3,8 @@ import joblib
 import pandas as pd
 
 app = Flask(__name__)
+
+# Load model
 model = joblib.load("aerocastai_model.pkl")
 
 @app.route("/")
@@ -14,6 +16,7 @@ def predict():
     try:
         data = request.get_json()
 
+        # Match keys sent from frontend exactly
         features = [
             "lat", "lon", "wind_speed_10m", "wind_gusts_10m", "temperature",
             "dew_point_2m", "relative_humidity_2m", "precipitation",
