@@ -7,5 +7,5 @@ services:
     startCommand: gunicorn app:app
     branch: main
     region: oregon
-    runtime: python3
+    runtime: python3.10
     autoDeploy: true
