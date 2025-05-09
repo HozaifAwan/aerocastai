@@ -16,7 +16,7 @@ def predict():
     try:
         data = request.get_json()
 
-        # Match keys sent from frontend exactly
+        # Match exactly with the frontend field names
         features = [
             "lat", "lon", "wind_speed_10m", "wind_gusts_10m", "temperature",
             "dew_point_2m", "relative_humidity_2m", "precipitation",
@@ -24,8 +24,10 @@ def predict():
             "convective_available_potential_energy", "lifted_index"
         ]
 
+        # Create dataframe for model
         input_df = pd.DataFrame([[data[feat] for feat in features]], columns=features)
 
+        # Predict
         pred = model.predict(input_df)[0]
         probas = model.predict_proba(input_df)[0]
         confidence = round(probas[int(pred)] * 100, 2)
