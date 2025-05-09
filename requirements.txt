@@ -4,3 +4,4 @@ joblib
 schedule
 scikit-learn
 openpyxl
+gunicorn
