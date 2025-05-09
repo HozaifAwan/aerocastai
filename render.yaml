@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: aerocastai-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    branch: main
+    region: oregon
+    runtime: python3
+    autoDeploy: true
